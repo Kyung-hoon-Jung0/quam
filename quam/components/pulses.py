@@ -921,8 +921,13 @@ class _FlatTopGaussianPulse(Pulse):
             sampling_rate=self._get_sampling_rate(),
         )
 
-        zero_padding = np.zeros(self.length - len(waveform))
-        waveform = np.concatenate((waveform, zero_padding))
+        # Centered: padding the whole remainder on the right would translate the pulse
+        # earlier within its element by up to half the padding, which changes the timing
+        # of every flux gate calibrated against this shape.
+        zero_pad_len = self.length - len(waveform)
+        left_pad = zero_pad_len // 2
+        right_pad = zero_pad_len - left_pad
+        waveform = np.concatenate((np.zeros(left_pad), waveform, np.zeros(right_pad)))
 
         if self.axis_angle is not None:
             waveform = waveform * np.exp(1j * self.axis_angle)
@@ -1222,10 +1227,24 @@ class _CosineBipolarPulse(Pulse):
         seg_switch = A * cos_switch(switch_len)
         seg_flat_neg = -A * np.ones(flat_neg_len)
         seg_fall = -A * halfcos(fall_len)[::-1]
-        zero_padding = np.zeros(L - (self.smoothing_length + F))
+
+        # Centered: padding the whole remainder on the right would translate the pulse
+        # earlier within its element, which changes the timing of every flux gate
+        # calibrated against this shape.
+        zero_pad_len = L - (self.smoothing_length + F)
+        left_pad = zero_pad_len // 2
+        right_pad = zero_pad_len - left_pad
 
         p = np.concatenate(
-            [seg_rise, seg_flat_pos, seg_switch, seg_flat_neg, seg_fall, zero_padding]
+            [
+                np.zeros(left_pad),
+                seg_rise,
+                seg_flat_pos,
+                seg_switch,
+                seg_flat_neg,
+                seg_fall,
+                np.zeros(right_pad),
+            ]
         )
 
         if self.axis_angle is not None:
